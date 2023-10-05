@@ -75,7 +75,7 @@ float kp_r = 15.5, ki_r = 0.49, kd_r = 0.15, rp_r = 0, ri_r = 0, rd_r = 0;   //Ó
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
 uint16_t val_max_l = 1190, val_min_l = 0, val_max_m = 900, val_min_m = 0, val_max_r = 1190, val_min_r = 0;
 float bias = 0, last_bias = 0;
-float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5;
+float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5, K = 0;
 float position_alpha = 0.2; //²»ÍêÈ«Î¢·ÖÏµÊý
 //	float position_gama = 0.2£»//Î¢·ÖÏÈÐÐÂË²¨ÏµÊý
 
@@ -106,9 +106,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -167,22 +167,22 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -197,9 +197,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -233,106 +232,106 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       {
         /*µç´ÅÔËÐÐ*/
         // position
-				uint8_t i, j;
-				for (i = 0; i < 10; i++)
-				{
-					for (uint8_t n = 0; n < 3; n++)
-					{
-						HAL_ADC_Start(&hadc1);
-						HAL_ADC_PollForConversion(&hadc1, 50);
-						inductance_val[n] = HAL_ADC_GetValue(&hadc1);
-					}
-					adc_val_l[i] = inductance_val[0];
-					adc_val_m[i] = inductance_val[1];
-					adc_val_r[i] = inductance_val[2];
-				}
+        uint8_t i, j;
+        for (i = 0; i < 10; i++)
+        {
+          for (uint8_t n = 0; n < 3; n++)
+          {
+            HAL_ADC_Start(&hadc1);
+            HAL_ADC_PollForConversion(&hadc1, 50);
+            inductance_val[n] = HAL_ADC_GetValue(&hadc1);
+          }
+          adc_val_l[i] = inductance_val[0];
+          adc_val_m[i] = inductance_val[1];
+          adc_val_r[i] = inductance_val[2];
+        }
 
-				//ÖÐÖµÆ½¾ùÂË²¨
-				uint16_t temp;
-				//×óµç¸Ð
-				for (j = 0; j < 9; j++)
-				{
-					for (i = 0; i < 9 - j; i++)
-					{
-						if (adc_val_l[i] > adc_val_l[i + 1])
-						{
-							temp = adc_val_l[i];
-							adc_val_l[i] = adc_val_l[i + 1];
-							adc_val_l[i + 1] = temp;
-						}
-					}
-				}
+        //ÖÐÖµÆ½¾ùÂË²¨
+        uint16_t temp;
+        //×óµç¸Ð
+        for (j = 0; j < 9; j++)
+        {
+          for (i = 0; i < 9 - j; i++)
+          {
+            if (adc_val_l[i] > adc_val_l[i + 1])
+            {
+              temp = adc_val_l[i];
+              adc_val_l[i] = adc_val_l[i + 1];
+              adc_val_l[i + 1] = temp;
+            }
+          }
+        }
 
-				for (i = 1; i < 9; i++)
-				{
-					sum_l += adc_val_l[i];
-				}
-				val_l = (float)sum_l / 8;
-				sum_l = 0;
-				temp = 0;
+        for (i = 1; i < 9; i++)
+        {
+          sum_l += adc_val_l[i];
+        }
+        val_l = (float)sum_l / 8;
+        sum_l = 0;
+        temp = 0;
 
-				//ÖÐ¼äµç¸Ð
-				for (j = 0; j < 9; j++)
-				{
-					for (i = 0; i < 9 - j; i++)
-					{
-						if (adc_val_m[i] > adc_val_m[i + 1])
-						{
-							temp = adc_val_m[i];
-							adc_val_m[i] = adc_val_m[i + 1];
-							adc_val_m[i + 1] = temp;
-						}
-					}
-				}
+        //ÖÐ¼äµç¸Ð
+        for (j = 0; j < 9; j++)
+        {
+          for (i = 0; i < 9 - j; i++)
+          {
+            if (adc_val_m[i] > adc_val_m[i + 1])
+            {
+              temp = adc_val_m[i];
+              adc_val_m[i] = adc_val_m[i + 1];
+              adc_val_m[i + 1] = temp;
+            }
+          }
+        }
 
-				for (i = 1; i < 9; i++)
-				{
-					sum_m += adc_val_m[i];
-				}
-				val_m = (float)sum_m / 8;
-				sum_m = 0;
-				temp = 0;
+        for (i = 1; i < 9; i++)
+        {
+          sum_m += adc_val_m[i];
+        }
+        val_m = (float)sum_m / 8;
+        sum_m = 0;
+        temp = 0;
 
-				//ÓÒµç¸Ð
-				for (j = 0; j < 9; j++)
-				{
-					for (i = 0; i < 9 - j; i++)
-					{
-						if (adc_val_r[i] > adc_val_r[i + 1])
-						{
-							temp = adc_val_r[i];
-							adc_val_r[i] = adc_val_r[i + 1];
-							adc_val_r[i + 1] = temp;
-						}
-					}
-				}
+        //ÓÒµç¸Ð
+        for (j = 0; j < 9; j++)
+        {
+          for (i = 0; i < 9 - j; i++)
+          {
+            if (adc_val_r[i] > adc_val_r[i + 1])
+            {
+              temp = adc_val_r[i];
+              adc_val_r[i] = adc_val_r[i + 1];
+              adc_val_r[i + 1] = temp;
+            }
+          }
+        }
 
-				for (i = 1; i < 9; i++)
-				{
-					sum_r += adc_val_r[i];
-				}
-				val_r = (float)sum_r / 8;
-				sum_r = 0;
-				temp = 0;
+        for (i = 1; i < 9; i++)
+        {
+          sum_r += adc_val_r[i];
+        }
+        val_r = (float)sum_r / 8;
+        sum_r = 0;
+        temp = 0;
 
-				bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //²î±ÈºÍ
+        bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //²î±ÈºÍ
 
-				//		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
+        //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
 
-				//Î»ÖÃ»·pid
-				if (bias < 1 && bias > -1)
-				{
-					bias *= 0.1f;
-				}
-				else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
-				{
-					bias *= 0.425f;
-				}
+        //Î»ÖÃ»·pid
+        if (bias < 1 && bias > -1)
+        {
+          bias *= 0.1f;
+        }
+        else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
+        {
+          bias *= 0.425f;
+        }
       }
       else
       {
         /*Í¼ÏñÔËÐÐ*/
-//        bias = K * fabs(seed_col - 94); // K´ý¶¨
+        bias = K * (seed_col - 94); // K´ý¶¨
       }
 
       position_rp = position_kp * bias;
@@ -346,120 +345,92 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       last_rd = position_rd;
 
       //×óÂÖ
-			measureval_l = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
-			__HAL_TIM_SET_COUNTER(&htim2, 0);
+      measureval_l = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
+      __HAL_TIM_SET_COUNTER(&htim2, 0);
 
-			ref_speed_l = ref_speed_l - delta_speed / 2;
+      ref_speed_l = ref_speed_l - delta_speed / 2;
 
-			if (ref_speed_l > 650)
-				ref_speed_l = 650;
-			else if (ref_speed_l < 0)
-				ref_speed_l = 0;
-			err_l = ref_speed_l - measureval_l;
-			err_sum_l += err_l;
-			if (err_sum_l > 80000)
-				err_sum_l = 80000;
-			if (err_sum_l < -80000)
-				err_sum_l = -80000;
-			//¿¹»ý·Ö±¥ºÍ
-			//		if (err_sum_l > 80000)
-			//		{
-			//			if(err_l <= 0)err_sum_l += err_l;
-			//
-			//		}
-			//		else if(err_sum_l < -80000)
-			//		{
-			//			if(err_l >= 0)err_sum_l += err_l;
-			//		}
-			//		else
-			//		{
-			//			err_sum_l += err_l;
-			//		}
-			//ÌÝÐÎ»ý·Ö£¬½«err_l»»Îª(err_l + last_err_l) / 2¼´¿É
-			rp_l = kp_l * err_l;
-			ri_l = ki_l * err_sum_l;
-			rd_l = kd_l * (err_l - last_err_l);
-			pwm_l = rp_l + ri_l + rd_l;
-			if (pwm_l > 0)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-				if (pwm_l > 8000)
-					TIM4->CCR3 = 8000;
-				else
-				{
-					TIM4->CCR3 = pwm_l;
-				}
-			}
-			if (pwm_l < 0)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-				if (pwm_l < -8000)
-					TIM4->CCR3 = 8000;
-				else
-				{
-					TIM4->CCR3 = -pwm_l;
-				}
-			}
-			//		printf("%d %d\r\n",measureval_l,targetval_l);
-			last_err_l = err_l;
+      if (ref_speed_l > 650)
+        ref_speed_l = 650;
+      else if (ref_speed_l < 0)
+        ref_speed_l = 0;
+      err_l = ref_speed_l - measureval_l;
+      err_sum_l += err_l;
+      if (err_sum_l > 80000)
+        err_sum_l = 80000;
+      if (err_sum_l < -80000)
+        err_sum_l = -80000;
 
-			//ÓÒÂÖ
-			measureval_r = (int16_t)-__HAL_TIM_GET_COUNTER(&htim3);
-			__HAL_TIM_SET_COUNTER(&htim3, 0);
+      rp_l = kp_l * err_l;
+      ri_l = ki_l * err_sum_l;
+      rd_l = kd_l * (err_l - last_err_l);
+      pwm_l = rp_l + ri_l + rd_l;
+      if (pwm_l > 0)
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+        if (pwm_l > 8000)
+          TIM4->CCR3 = 8000;
+        else
+        {
+          TIM4->CCR3 = pwm_l;
+        }
+      }
+      if (pwm_l < 0)
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+        if (pwm_l < -8000)
+          TIM4->CCR3 = 8000;
+        else
+        {
+          TIM4->CCR3 = -pwm_l;
+        }
+      }
+      //		printf("%d %d\r\n",measureval_l,targetval_l);
+      last_err_l = err_l;
 
-			ref_speed_r = ref_speed_r + delta_speed / 2;
+      //ÓÒÂÖ
+      measureval_r = (int16_t)-__HAL_TIM_GET_COUNTER(&htim3);
+      __HAL_TIM_SET_COUNTER(&htim3, 0);
 
-			if (ref_speed_r > 650)
-				ref_speed_r = 650;
-			else if (ref_speed_r < 0)
-				ref_speed_r = 0;
-			err_r = ref_speed_r - measureval_r;
-			err_sum_r += err_r;
-			if (err_sum_r > 80000)
-				err_sum_r = 80000;
-			if (err_sum_r < -80000)
-				err_sum_r = -80000;
-			//¿¹»ý·Ö±¥ºÍ
-			//		if (err_sum_r > 80000)
-			//		{
-			//			if(err_r <= 0)err_sum_r += err_r;
-			//
-			//		}
-			//		else if(err_sum_r < -80000)
-			//		{
-			//			if(err_r >= 0)err_sum_r += err_r;
-			//		}
-			//		else
-			//		{
-			//			err_sum_r += err_r;
-			//		}
-			//ÌÝÐÎ»ý·Ö£¬½«err_r»»Îª(err_r + last_err_r) / 2¼´¿É
-			rp_r = kp_r * err_r;
-			ri_r = ki_r * err_sum_r;
-			rd_r = kd_r * (err_r - last_err_r);
-			pwm_r = rp_r + ri_r + rd_r;
-			if (pwm_r > 0)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
-				if (pwm_r > 8000)
-					TIM4->CCR4 = 8000;
-				else
-				{
-					TIM4->CCR4 = pwm_r;
-				}
-			}
-			if (pwm_r < 0)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
-				if (pwm_r < -8000)
-					TIM4->CCR4 = 8000;
-				else
-				{
-					TIM4->CCR4 = -pwm_r;
-				}
-			}
-			//		printf("%d %d\r\n",measureval_r,targetval_r);
-			last_err_r = err_r;
+      ref_speed_r = ref_speed_r + delta_speed / 2;
+
+      if (ref_speed_r > 650)
+        ref_speed_r = 650;
+      else if (ref_speed_r < 0)
+        ref_speed_r = 0;
+      err_r = ref_speed_r - measureval_r;
+      err_sum_r += err_r;
+      if (err_sum_r > 80000)
+        err_sum_r = 80000;
+      if (err_sum_r < -80000)
+        err_sum_r = -80000;
+
+      rp_r = kp_r * err_r;
+      ri_r = ki_r * err_sum_r;
+      rd_r = kd_r * (err_r - last_err_r);
+      pwm_r = rp_r + ri_r + rd_r;
+      if (pwm_r > 0)
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+        if (pwm_r > 8000)
+          TIM4->CCR4 = 8000;
+        else
+        {
+          TIM4->CCR4 = pwm_r;
+        }
+      }
+      if (pwm_r < 0)
+      {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+        if (pwm_r < -8000)
+          TIM4->CCR4 = 8000;
+        else
+        {
+          TIM4->CCR4 = -pwm_r;
+        }
+      }
+      //		printf("%d %d\r\n",measureval_r,targetval_r);
+      last_err_r = err_r;
     }
 
     mt9v03x_finish_flag = 0;
@@ -557,7 +528,7 @@ void adapt_threshold(uint8_t image[row][col])
 void detect_seed()
 {
   uint8_t seed_row;
-  uint8_t seed_col; 
+  uint8_t seed_col;
 
   uint16_t seed_left[120] = {0};
   uint16_t seed_right[120] = {0};
@@ -615,6 +586,15 @@ void detect_seed()
     }
     last_col = (uint8_t)((seed_left[seed_row] + seed_right[seed_row]) / 2);
 
+    if (last_col < 1)
+    {
+      last_col = 1;
+    }
+    else if (last_col > 186)
+    {
+      last_col = 186;
+    }
+
     if (row > 63 && row < 126 && (seed_right[seed_row] - seed_left[seed_row]) < 5 && flag1 == 0 && seed_left[seed_row] > 10 && seed_right[seed_row] < 170)
     {
       flag1 = 5; //ÒÑÈë¶ÏÂ·
@@ -646,13 +626,12 @@ void detect_seed()
   }
 }
 
-
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -664,14 +643,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
