@@ -322,21 +322,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       err_sum_l = 80000;
     if (err_sum_l < -80000)
       err_sum_l = -80000;
-    //抗积分饱和
-    //		if (err_sum_l > 80000)
-    //		{
-    //			if(err_l <= 0)err_sum_l += err_l;
-    //
-    //		}
-    //		else if(err_sum_l < -80000)
-    //		{
-    //			if(err_l >= 0)err_sum_l += err_l;
-    //		}
-    //		else
-    //		{
-    //			err_sum_l += err_l;
-    //		}
-    //梯形积分，将err_l换为(err_l + last_err_l) / 2即可
     rp_l = kp_l * err_l;
     ri_l = ki_l * err_sum_l;
     rd_l = kd_l * (err_l - last_err_l);
@@ -380,21 +365,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       err_sum_r = 80000;
     if (err_sum_r < -80000)
       err_sum_r = -80000;
-    //抗积分饱和
-    //		if (err_sum_r > 80000)
-    //		{
-    //			if(err_r <= 0)err_sum_r += err_r;
-    //
-    //		}
-    //		else if(err_sum_r < -80000)
-    //		{
-    //			if(err_r >= 0)err_sum_r += err_r;
-    //		}
-    //		else
-    //		{
-    //			err_sum_r += err_r;
-    //		}
-    //梯形积分，将err_r换为(err_r + last_err_r) / 2即可
     rp_r = kp_r * err_r;
     ri_r = ki_r * err_sum_r;
     rd_r = kd_r * (err_r - last_err_r);
