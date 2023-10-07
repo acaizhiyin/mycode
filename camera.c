@@ -142,10 +142,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    //	  if (mt9v03x_finish_flag) {
-    //		  image_transmit();
-    //		  mt9v03x_finish_flag = 0;
-    //	  }
   }
   /* USER CODE END 3 */
 }
