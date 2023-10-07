@@ -58,14 +58,14 @@ int fputc(int ch, FILE *f)
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 600, ref_speed_r = 600;
+int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 200, ref_speed_r = 200;
 int pwm_l = 0, pwm_r = 0;
 float err_l = 0, last_err_l = 0, err_sum_l = 0, err_r = 0, err_sum_r = 0, last_err_r = 0;
-float kp_l = 15.5, ki_l = 0.455, kd_l = 0.125, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
-float kp_r = 15.5, ki_r = 0.49, kd_r = 0.15, rp_r = 0, ri_r = 0, rd_r = 0;   //右轮
+float kp_l = 3.2, ki_l = 0.3, kd_l = 0.05, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
+float kp_r = 3, ki_r = 0.3, kd_r = 0.25, rp_r = 0, ri_r = 0, rd_r = 0;   //右轮
 
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
-uint16_t val_max_l = 1190, val_min_l = 0, val_max_m = 900, val_min_m = 0, val_max_r = 1190, val_min_r = 0;
+uint16_t val_max_l = 1200, val_min_l = 0, val_max_m = 950, val_min_m = 0, val_max_r = 950, val_min_r = 0;
 float bias = 0, last_bias = 0;
 float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5;
 float position_alpha = 0.2; //不完全微分系数
@@ -283,6 +283,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     sum_r = 0;
     temp = 0;
 
+    val_l = 100 * (val_l - val_min_l) / (val_max_l - val_min_l);
+    val_m = 100 * (val_m - val_min_m) / (val_max_m - val_min_m);
+    val_r = 100 * (val_r - val_min_r) / (val_max_r - val_min_r);
     bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
 
     //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
@@ -306,14 +309,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     last_bias = bias;
     last_rd = position_rd;
 
-    //左轮
+    //    //左轮
     measureval_l = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
     __HAL_TIM_SET_COUNTER(&htim2, 0);
 
     ref_speed_l = ref_speed_l - delta_speed / 2;
 
-    if (ref_speed_l > 650)
-      ref_speed_l = 650;
+    if (ref_speed_l > 300)
+      ref_speed_l = 300;
     else if (ref_speed_l < 0)
       ref_speed_l = 0;
     err_l = ref_speed_l - measureval_l;
@@ -328,7 +331,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     pwm_l = rp_l + ri_l + rd_l;
     if (pwm_l > 0)
     {
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
       if (pwm_l > 8000)
         TIM4->CCR3 = 8000;
       else
@@ -338,7 +341,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     if (pwm_l < 0)
     {
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
       if (pwm_l < -8000)
         TIM4->CCR3 = 8000;
       else
@@ -346,7 +349,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         TIM4->CCR3 = -pwm_l;
       }
     }
-    //		printf("%d %d\r\n",measureval_l,targetval_l);
+    // printf("%d %d\r\n",measureval_l,ref_speed_l);
     last_err_l = err_l;
 
     //右轮
@@ -355,8 +358,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
     ref_speed_r = ref_speed_r + delta_speed / 2;
 
-    if (ref_speed_r > 650)
-      ref_speed_r = 650;
+    if (ref_speed_r > 300)
+      ref_speed_r = 300;
     else if (ref_speed_r < 0)
       ref_speed_r = 0;
     err_r = ref_speed_r - measureval_r;
@@ -371,7 +374,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     pwm_r = rp_r + ri_r + rd_r;
     if (pwm_r > 0)
     {
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
       if (pwm_r > 8000)
         TIM4->CCR4 = 8000;
       else
@@ -381,7 +384,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     if (pwm_r < 0)
     {
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
       if (pwm_r < -8000)
         TIM4->CCR4 = 8000;
       else
