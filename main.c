@@ -29,8 +29,7 @@
 #include "SEEKFREE_MT9V03X_CONFIG.h"
 #include "SEEKFREE_IIC.h"
 #include "SEEKFREE_MT9V03X.h"
-#include <stdio.h>
-#include <math.h>
+#include "stdio.h"
 
 extern UART_HandleTypeDef huart1;
 int fputc(int ch, FILE *f)
@@ -42,9 +41,8 @@ int fputc(int ch, FILE *f)
 #define col 188
 #define row 120
 
-void adapt_threshold(uint8_t image[row][col]);
+void adapt_threshold(void);
 void detect_seed(void);
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,20 +62,18 @@ void detect_seed(void);
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
 /*电磁参数*/
-int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 600, ref_speed_r = 600;
+int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 400, ref_speed_r = 400;
 int pwm_l = 0, pwm_r = 0;
 float err_l = 0, last_err_l = 0, err_sum_l = 0, err_r = 0, err_sum_r = 0, last_err_r = 0;
-float kp_l = 15.5, ki_l = 0.455, kd_l = 0.125, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
-float kp_r = 15.5, ki_r = 0.49, kd_r = 0.15, rp_r = 0, ri_r = 0, rd_r = 0;   //右轮
+float kp_l = 3.2, ki_l = 0.3, kd_l = 0.05, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
+float kp_r = 3, ki_r = 0.3, kd_r = 0.25, rp_r = 0, ri_r = 0, rd_r = 0;   //右轮
 
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
-uint16_t val_max_l = 1190, val_min_l = 0, val_max_m = 900, val_min_m = 0, val_max_r = 1190, val_min_r = 0;
+uint16_t val_max_l = 1200, val_min_l = 0, val_max_m = 950, val_min_m = 0, val_max_r = 950, val_min_r = 0;
 float bias = 0, last_bias = 0;
-float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5, K = 0;
+float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5, K = 0.1;
 float position_alpha = 0.2; //不完全微分系数
-//	float position_gama = 0.2；//微分先行滤波系数
 
 /*视觉参数*/
 uint8_t image_threshold[row][col] = {0};
@@ -138,9 +134,9 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_USART2_UART_Init();
+  MX_USART1_UART_Init();
   MX_ADC1_Init();
   MX_TIM4_Init();
-  MX_USART1_UART_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   mt9v03x_init();
@@ -158,10 +154,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    //		if (mt9v03x_finish_flag) {
-    //
-    //			mt9v03x_finish_flag = 0;
-    //		}
+    //	  if (mt9v03x_finish_flag) {
+    //		  image_transmit();
+    //		  mt9v03x_finish_flag = 0;
+    //	  }
   }
   /* USER CODE END 3 */
 }
@@ -215,143 +211,153 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim == &htim5)
   {
-    /*图像处理*/
+    //    /*图像处理*/
 
-    if (mt9v03x_finish_flag)
+    //    if (mt9v03x_finish_flag)
+    //    {
+
+    //      /*第一步 优化大津法*/
+    //      //算方差 阈值限制 二值化
+    //      adapt_threshold();
+
+    //      /*第二步 扫线 并判断是否出入断路*/
+    //      detect_seed();
+    ////			image_transmit();
+    ////			mt9v03x_finish_flag = 0;
+    //
+    //			 /*判断电磁或图像*/
+    //      if (flag1 == 1 && flag2 == 0)
+    //      {
+    /*电磁运行*/
+    // position
+    uint8_t i, j;
+    for (i = 0; i < 10; i++)
     {
-
-      /*第一步 优化大津法*/
-      //算方差 阈值限制 二值化
-      adapt_threshold(mt9v03x_image);
-
-      /*第二步 扫线 并判断是否出入断路*/
-      detect_seed();
-
-      /*判断电磁或图像*/
-      if (flag1 == 1 && flag2 == 0)
+      for (uint8_t n = 0; n < 3; n++)
       {
-        /*电磁运行*/
-        // position
-        uint8_t i, j;
-        for (i = 0; i < 10; i++)
-        {
-          for (uint8_t n = 0; n < 3; n++)
-          {
-            HAL_ADC_Start(&hadc1);
-            HAL_ADC_PollForConversion(&hadc1, 50);
-            inductance_val[n] = HAL_ADC_GetValue(&hadc1);
-          }
-          adc_val_l[i] = inductance_val[0];
-          adc_val_m[i] = inductance_val[1];
-          adc_val_r[i] = inductance_val[2];
-        }
+        HAL_ADC_Start(&hadc1);
+        HAL_ADC_PollForConversion(&hadc1, 50);
+        inductance_val[n] = HAL_ADC_GetValue(&hadc1);
+      }
+      adc_val_l[i] = inductance_val[0];
+      adc_val_m[i] = inductance_val[1];
+      adc_val_r[i] = inductance_val[2];
+    }
 
-        //中值平均滤波
-        uint16_t temp;
-        //左电感
-        for (j = 0; j < 9; j++)
+    //中值平均滤波
+    uint16_t temp;
+    //左电感
+    for (j = 0; j < 9; j++)
+    {
+      for (i = 0; i < 9 - j; i++)
+      {
+        if (adc_val_l[i] > adc_val_l[i + 1])
         {
-          for (i = 0; i < 9 - j; i++)
-          {
-            if (adc_val_l[i] > adc_val_l[i + 1])
-            {
-              temp = adc_val_l[i];
-              adc_val_l[i] = adc_val_l[i + 1];
-              adc_val_l[i + 1] = temp;
-            }
-          }
-        }
-
-        for (i = 1; i < 9; i++)
-        {
-          sum_l += adc_val_l[i];
-        }
-        val_l = (float)sum_l / 8;
-        sum_l = 0;
-        temp = 0;
-
-        //中间电感
-        for (j = 0; j < 9; j++)
-        {
-          for (i = 0; i < 9 - j; i++)
-          {
-            if (adc_val_m[i] > adc_val_m[i + 1])
-            {
-              temp = adc_val_m[i];
-              adc_val_m[i] = adc_val_m[i + 1];
-              adc_val_m[i + 1] = temp;
-            }
-          }
-        }
-
-        for (i = 1; i < 9; i++)
-        {
-          sum_m += adc_val_m[i];
-        }
-        val_m = (float)sum_m / 8;
-        sum_m = 0;
-        temp = 0;
-
-        //右电感
-        for (j = 0; j < 9; j++)
-        {
-          for (i = 0; i < 9 - j; i++)
-          {
-            if (adc_val_r[i] > adc_val_r[i + 1])
-            {
-              temp = adc_val_r[i];
-              adc_val_r[i] = adc_val_r[i + 1];
-              adc_val_r[i + 1] = temp;
-            }
-          }
-        }
-
-        for (i = 1; i < 9; i++)
-        {
-          sum_r += adc_val_r[i];
-        }
-        val_r = (float)sum_r / 8;
-        sum_r = 0;
-        temp = 0;
-
-        bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
-
-        //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
-
-        //位置环pid
-        if (bias < 1 && bias > -1)
-        {
-          bias *= 0.1f;
-        }
-        else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
-        {
-          bias *= 0.425f;
+          temp = adc_val_l[i];
+          adc_val_l[i] = adc_val_l[i + 1];
+          adc_val_l[i + 1] = temp;
         }
       }
-      else
+    }
+
+    for (i = 1; i < 9; i++)
+    {
+      sum_l += adc_val_l[i];
+    }
+    val_l = (float)sum_l / 8;
+    sum_l = 0;
+    temp = 0;
+
+    //中间电感
+    for (j = 0; j < 9; j++)
+    {
+      for (i = 0; i < 9 - j; i++)
       {
-        /*图像运行*/
-        bias = K * (seed_col - 94); // K待定
+        if (adc_val_m[i] > adc_val_m[i + 1])
+        {
+          temp = adc_val_m[i];
+          adc_val_m[i] = adc_val_m[i + 1];
+          adc_val_m[i + 1] = temp;
+        }
       }
+    }
 
-      position_rp = position_kp * bias;
-      position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
-      delta_speed = (int16_t)(position_rp + position_rd);
-      if (delta_speed > 200)
-        delta_speed = 200;
-      if (delta_speed < -200)
-        delta_speed = -200;
-      last_bias = bias;
-      last_rd = position_rd;
+    for (i = 1; i < 9; i++)
+    {
+      sum_m += adc_val_m[i];
+    }
+    val_m = (float)sum_m / 8;
+    sum_m = 0;
+    temp = 0;
 
+    //右电感
+    for (j = 0; j < 9; j++)
+    {
+      for (i = 0; i < 9 - j; i++)
+      {
+        if (adc_val_r[i] > adc_val_r[i + 1])
+        {
+          temp = adc_val_r[i];
+          adc_val_r[i] = adc_val_r[i + 1];
+          adc_val_r[i + 1] = temp;
+        }
+      }
+    }
+
+    for (i = 1; i < 9; i++)
+    {
+      sum_r += adc_val_r[i];
+    }
+    val_r = (float)sum_r / 8;
+    sum_r = 0;
+    temp = 0;
+
+    val_l = 100 * (val_l - val_min_l) / (val_max_l - val_min_l);
+    val_m = 100 * (val_m - val_min_m) / (val_max_m - val_min_m);
+    val_r = 100 * (val_r - val_min_r) / (val_max_r - val_min_r);
+    bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
+
+    //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
+
+    //位置环pid
+    if (bias < 1 && bias > -1)
+    {
+      bias *= 0.1f;
+    }
+    else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
+    {
+      bias *= 0.425f;
+    }
+    //		else
+    //    {
+    //			bias = K * (94 - seed_col);
+    //    }
+    //	printf("%f \r\n", bias);
+    position_rp = position_kp * bias;
+    position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
+    delta_speed = (int16_t)(position_rp + position_rd);
+    if (delta_speed > 200)
+      delta_speed = 200;
+    if (delta_speed < -200)
+      delta_speed = -200;
+    last_bias = bias;
+    last_rd = position_rd;
+
+    if (val_l < 20 && val_m < 20 && val_r < 20)
+    {
+      TIM4->CCR3 = 0;
+      TIM4->CCR4 = 0;
+    }
+    else
+    {
       //左轮
       measureval_l = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
       __HAL_TIM_SET_COUNTER(&htim2, 0);
 
       ref_speed_l = ref_speed_l - delta_speed / 2;
 
-      if (ref_speed_l > 650)
-        ref_speed_l = 650;
+      if (ref_speed_l > 500)
+        ref_speed_l = 500;
       else if (ref_speed_l < 0)
         ref_speed_l = 0;
       err_l = ref_speed_l - measureval_l;
@@ -360,14 +366,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         err_sum_l = 80000;
       if (err_sum_l < -80000)
         err_sum_l = -80000;
-
       rp_l = kp_l * err_l;
       ri_l = ki_l * err_sum_l;
       rd_l = kd_l * (err_l - last_err_l);
       pwm_l = rp_l + ri_l + rd_l;
       if (pwm_l > 0)
       {
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
         if (pwm_l > 8000)
           TIM4->CCR3 = 8000;
         else
@@ -377,7 +382,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       }
       if (pwm_l < 0)
       {
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
         if (pwm_l < -8000)
           TIM4->CCR3 = 8000;
         else
@@ -385,7 +390,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
           TIM4->CCR3 = -pwm_l;
         }
       }
-      //		printf("%d %d\r\n",measureval_l,targetval_l);
+      // printf("%d %d\r\n",measureval_l,ref_speed_l);
       last_err_l = err_l;
 
       //右轮
@@ -394,8 +399,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
       ref_speed_r = ref_speed_r + delta_speed / 2;
 
-      if (ref_speed_r > 650)
-        ref_speed_r = 650;
+      if (ref_speed_r > 500)
+        ref_speed_r = 500;
       else if (ref_speed_r < 0)
         ref_speed_r = 0;
       err_r = ref_speed_r - measureval_r;
@@ -404,14 +409,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         err_sum_r = 80000;
       if (err_sum_r < -80000)
         err_sum_r = -80000;
-
       rp_r = kp_r * err_r;
       ri_r = ki_r * err_sum_r;
       rd_r = kd_r * (err_r - last_err_r);
       pwm_r = rp_r + ri_r + rd_r;
       if (pwm_r > 0)
       {
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
         if (pwm_r > 8000)
           TIM4->CCR4 = 8000;
         else
@@ -421,7 +425,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       }
       if (pwm_r < 0)
       {
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
         if (pwm_r < -8000)
           TIM4->CCR4 = 8000;
         else
@@ -432,21 +436,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       //		printf("%d %d\r\n",measureval_r,targetval_r);
       last_err_r = err_r;
     }
-
-    mt9v03x_finish_flag = 0;
+    //
+    //		}
+    //		mt9v03x_finish_flag = 0;
   }
 }
 
 /*优化大津法*/
-void adapt_threshold(uint8_t image[row][col])
+void adapt_threshold(void)
 {
 
   uint16_t pixelCount[256] = {0};
-  uint8_t pixelPro[256] = {0};
-  uint8_t i, j;
+  float pixelPro[256] = {0};
+  uint16_t i, j = 0;
   uint16_t pixelSum = col * row / 4; // 间接取点
   uint8_t threshold = 0;
   uint32_t gray_sum = 0;
+  float w0 = 0, w1 = 0, u0tmp = 0, u1tmp = 0, u0 = 0, u1 = 0, u = 0, deltaTmp = 0, deltaMax = 0;
 
   //灰度直方图数组
   //整体灰度 方便减少遍历
@@ -454,42 +460,31 @@ void adapt_threshold(uint8_t image[row][col])
   {
     for (j = 0; j < col; j += 2)
     {
-      pixelCount[image[i][j]]++;
-      gray_sum += image[i][j];
+      pixelCount[mt9v03x_image[i][j]]++;
+      gray_sum += mt9v03x_image[i][j];
     }
   }
 
   //灰度占比
   for (i = 0; i <= 255; i++)
   {
-    pixelPro[i] = pixelCount[i] / pixelSum;
+    pixelPro[i] = (float)pixelCount[i] / pixelSum;
   }
-
-  uint8_t w0 = 0;
-  uint8_t w1 = 0;
-  uint32_t u0tmp = 0;
-  uint32_t u1tmp = 0;
-  uint8_t u0 = 0;
-  uint8_t u1 = 0;
-  uint16_t u = 0;
-  uint8_t deltaTmp = 0;
-  uint8_t deltaMax = 0;
 
   for (j = 0; j <= 255; j++)
   {
     //背景
     w0 += pixelPro[j];
     u0tmp += j * pixelPro[j];
-    u0 = u0tmp / w0; //背景平均灰度
-
-    //前景
     w1 = 1 - w0;
-    u1tmp = gray_sum / pixelSum - u0tmp;
-    u = u0tmp + u1tmp; //前景平均灰度
+    u = (float)gray_sum / pixelSum;
+    u1tmp = u - u0tmp;
 
-    u = u0tmp + u1tmp; //全局平均灰度
-    deltaTmp = w0 * pow((u0 - u), 2) + w1 * pow((u1 - u), 2);
+    u0 = u0tmp / w0; //背景平均灰度
+    u1 = u1tmp / w1;
 
+    //    u = u0tmp + u1tmp; //全局平均灰度
+    deltaTmp = w0 * (u0 - u) * (u0 - u) + w1 * (u1 - u) * (u1 - u);
     if (deltaTmp > deltaMax)
     {
       deltaMax = deltaTmp;
@@ -512,7 +507,7 @@ void adapt_threshold(uint8_t image[row][col])
   {
     for (j = 0; j < col; j++)
     {
-      if (image[i][j] > threshold)
+      if (mt9v03x_image[i][j] > threshold)
       {
         image_threshold[i][j] = 255;
       }
@@ -568,7 +563,7 @@ void detect_seed()
     // right
     for (right_cnt = seed_col; right_cnt < 187; right_cnt++)
     {
-      int right_delta = image_threshold[row][right_cnt] - image_threshold[row][right_cnt + 1];
+      int right_delta = image_threshold[seed_row][right_cnt] - image_threshold[seed_row][right_cnt + 1];
       if (right_delta > 200)
       {
         seed_right[seed_row] = right_cnt;
@@ -585,7 +580,6 @@ void detect_seed()
       seed_col = (uint8_t)((seed_left[seed_row] + seed_right[seed_row]) / 2);
     }
     last_col = (uint8_t)((seed_left[seed_row] + seed_right[seed_row]) / 2);
-
     if (last_col < 1)
     {
       last_col = 1;
@@ -625,7 +619,6 @@ void detect_seed()
     flag1--;
   }
 }
-
 /* USER CODE END 4 */
 
 /**
