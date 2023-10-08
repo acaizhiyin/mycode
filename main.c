@@ -81,7 +81,9 @@ uint8_t image_threshold[row][col] = {0};
 uint8_t mode = 0;  // 0代表视觉运行，1代表电磁运行
 uint8_t flag1 = 0; //入断路
 uint8_t flag2 = 0; //出断路
-uint8_t seed_col = 0;
+float seed_delta = 0;
+uint16_t seed_left[120] = {0};
+uint16_t seed_right[120] = {0};
 
 /* USER CODE END PV */
 
@@ -212,23 +214,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim == &htim5)
   {
-    //    /*图像处理*/
+    /*图像处理*/
 
-    //    if (mt9v03x_finish_flag)
-    //    {
+    if (mt9v03x_finish_flag)
+    {
 
-    //      /*第一步 优化大津法*/
-    //      //算方差 阈值限制 二值化
-    //      adapt_threshold();
+      /*第一步 优化大津法*/
+      //算方差 阈值限制 二值化
+      adapt_threshold();
 
-    //      /*第二步 扫线 并判断是否出入断路*/
-    //      detect_seed();
-    ////			image_transmit();
-    ////			mt9v03x_finish_flag = 0;
-    //
-    //			 /*判断电磁或图像*/
-    //      if (flag1 == 1 && flag2 == 0)
-    //      {
+      /*第二步 扫线 并判断是否出入断路*/
+      detect_seed();
+      // image_transmit();
+      mt9v03x_finish_flag = 0;
+    }
+    /*判断电磁或图像*/
+    // if (flag1 == 1 && flag2 == 0)
+    //{
     /*电磁运行*/
     // position
     uint8_t i, j;
@@ -318,24 +320,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     val_r = 100 * (val_r - val_min_r) / (val_max_r - val_min_r);
     // bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
 
-    bias = 9 * (4 * (val_l - val_r) / (4 * (val_l + val_r) + km * abs((int16_t)(val_l - val_r)))); //差比和差
+    // bias = 9 * (4 * (val_l - val_r) / ( 4 * (val_l + val_r) + km * abs((int16_t)(val_l - val_r))));//差比和差
 
-    //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
+    // printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
 
-    //位置环pid
-    //    if (bias < 1 && bias > -1)
-    //    {
-    //      bias *= 0.5f;
-    //    }
-    //    else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
-    //    {
-    //      bias *= 0.7f;
-    //    }
-    //		else
-    //    {
-    //			bias = K * (94 - seed_col);
-    //    }
-    //	printf("%f \r\n", bias);
+    // else
+    //{
+    //	bias = K * (94 - seed_col);
+    // }
+    // printf("%f \r\n", bias);
+    bias = K * seed_delta;
+
     position_rp = position_kp * bias;
     position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
                                                                                                       // position_rd = position_kd * (bias - last_bias);
@@ -361,7 +356,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       ref_speed_l = ref_speed_l - delta_speed;
 
       if (ref_speed_l > 600)
+      {
         ref_speed_l = 600;
+      }
       else if (ref_speed_l < 0)
         ref_speed_l = 0;
       err_l = ref_speed_l - measureval_l;
@@ -404,9 +401,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       ref_speed_r = ref_speed_r + delta_speed;
 
       if (ref_speed_r > 600)
+      {
         ref_speed_r = 600;
+      }
       else if (ref_speed_r < 0)
         ref_speed_r = 0;
+
       err_r = ref_speed_r - measureval_r;
       err_sum_r += err_r;
       if (err_sum_r > 80000)
@@ -526,18 +526,13 @@ void adapt_threshold(void)
 /*扫线 判断出入断路*/
 void detect_seed()
 {
-  uint8_t seed_row;
-  uint8_t seed_col;
-
-  uint16_t seed_left[120] = {0};
-  uint16_t seed_right[120] = {0};
-
   uint8_t last_col = 1;
+  uint8_t seed_col = 0;
   uint8_t left_cnt = 0;
   uint8_t right_cnt = 0;
 
   /*扫线 sao xian*/
-  for (seed_row = row - 1; seed_row > 0; seed_row--)
+  for (uint8_t seed_row = row - 1; seed_row > 0; seed_row--)
   {
     if (seed_row == 119)
     {
@@ -579,11 +574,13 @@ void detect_seed()
       }
     }
 
-    if (seed_row == 126)
+    if (seed_row == 106)
     {
-      seed_col = (uint8_t)((seed_left[seed_row] + seed_right[seed_row]) / 2);
+      seed_delta = 94 - (float)((seed_left[seed_row] + seed_right[seed_row]) / 2);
     }
+
     last_col = (uint8_t)((seed_left[seed_row] + seed_right[seed_row]) / 2);
+
     if (last_col < 1)
     {
       last_col = 1;
@@ -593,7 +590,7 @@ void detect_seed()
       last_col = 186;
     }
 
-    if (row > 63 && row < 126 && (seed_right[seed_row] - seed_left[seed_row]) < 5 && flag1 == 0 && seed_left[seed_row] > 10 && seed_right[seed_row] < 170)
+    if (row > 63 && row < 106 && (seed_right[seed_row] - seed_left[seed_row]) < 5 && flag1 == 0 && seed_left[seed_row] > 10 && seed_right[seed_row] < 170)
     {
       flag1 = 5; //已入断路
       break;
