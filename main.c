@@ -68,7 +68,7 @@ int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 500, 
 int pwm_l = 0, pwm_r = 0;
 float err_l = 0, last_err_l = 0, err_sum_l = 0, err_r = 0, err_sum_r = 0, last_err_r = 0;
 float kp_l = 3.2, ki_l = 0.3, kd_l = 0.05, rp_l = 0, ri_l = 0, rd_l = 0; //×óÂÖ
-float kp_r = 3, ki_r = 0.3, kd_r = 0.25, rp_r = 0, ri_r = 0, rd_r = 0;   //ÓÒÂÖ
+float kp_r = 3, ki_r = 0.3, kd_r = 0.05, rp_r = 0, ri_r = 0, rd_r = 0;   //ÓÒÂÖ
 
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
 uint16_t val_max_l = 1200, val_min_l = 0, val_max_m = 950, val_min_m = 0, val_max_r = 950, val_min_r = 0;
