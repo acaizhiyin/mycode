@@ -30,6 +30,7 @@
 #include "SEEKFREE_IIC.h"
 #include "SEEKFREE_MT9V03X.h"
 #include "stdio.h"
+#include "stdlib.h"
 
 extern UART_HandleTypeDef huart1;
 int fputc(int ch, FILE *f)
@@ -63,7 +64,7 @@ void detect_seed(void);
 
 /* USER CODE BEGIN PV */
 /*电磁参数*/
-int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 400, ref_speed_r = 400;
+int16_t measureval_l = 0, measureval_r = 0, delta_speed = 0, ref_speed_l = 500, ref_speed_r = 500;
 int pwm_l = 0, pwm_r = 0;
 float err_l = 0, last_err_l = 0, err_sum_l = 0, err_r = 0, err_sum_r = 0, last_err_r = 0;
 float kp_l = 3.2, ki_l = 0.3, kd_l = 0.05, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
@@ -72,7 +73,7 @@ float kp_r = 3, ki_r = 0.3, kd_r = 0.25, rp_r = 0, ri_r = 0, rd_r = 0;   //右轮
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
 uint16_t val_max_l = 1200, val_min_l = 0, val_max_m = 950, val_min_m = 0, val_max_r = 950, val_min_r = 0;
 float bias = 0, last_bias = 0;
-float position_kp = 8, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 5, K = 0.1;
+float position_kp = 4, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0, km = 2, K = 0.1;
 float position_alpha = 0.2; //不完全微分系数
 
 /*视觉参数*/
@@ -315,19 +316,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     val_l = 100 * (val_l - val_min_l) / (val_max_l - val_min_l);
     val_m = 100 * (val_m - val_min_m) / (val_max_m - val_min_m);
     val_r = 100 * (val_r - val_min_r) / (val_max_r - val_min_r);
-    bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
+    // bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
+
+    bias = 9 * (4 * (val_l - val_r) / (4 * (val_l + val_r) + km * abs((int16_t)(val_l - val_r)))); //差比和差
 
     //		printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
 
     //位置环pid
-    if (bias < 1 && bias > -1)
-    {
-      bias *= 0.1f;
-    }
-    else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
-    {
-      bias *= 0.425f;
-    }
+    //    if (bias < 1 && bias > -1)
+    //    {
+    //      bias *= 0.5f;
+    //    }
+    //    else if ((bias < 2 && bias > 1) || (bias < -1 && bias > -2))
+    //    {
+    //      bias *= 0.7f;
+    //    }
     //		else
     //    {
     //			bias = K * (94 - seed_col);
@@ -335,11 +338,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     //	printf("%f \r\n", bias);
     position_rp = position_kp * bias;
     position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
+                                                                                                      // position_rd = position_kd * (bias - last_bias);
     delta_speed = (int16_t)(position_rp + position_rd);
-    if (delta_speed > 200)
-      delta_speed = 200;
-    if (delta_speed < -200)
-      delta_speed = -200;
+    if (delta_speed > 250)
+      delta_speed = 250;
+    if (delta_speed < -250)
+      delta_speed = -250;
     last_bias = bias;
     last_rd = position_rd;
 
@@ -354,10 +358,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       measureval_l = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
       __HAL_TIM_SET_COUNTER(&htim2, 0);
 
-      ref_speed_l = ref_speed_l - delta_speed / 2;
+      ref_speed_l = ref_speed_l - delta_speed;
 
-      if (ref_speed_l > 500)
-        ref_speed_l = 500;
+      if (ref_speed_l > 600)
+        ref_speed_l = 600;
       else if (ref_speed_l < 0)
         ref_speed_l = 0;
       err_l = ref_speed_l - measureval_l;
@@ -369,7 +373,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       rp_l = kp_l * err_l;
       ri_l = ki_l * err_sum_l;
       rd_l = kd_l * (err_l - last_err_l);
-      pwm_l = rp_l + ri_l + rd_l;
+      pwm_l = (int)(rp_l + ri_l + rd_l);
       if (pwm_l > 0)
       {
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
@@ -397,10 +401,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       measureval_r = (int16_t)-__HAL_TIM_GET_COUNTER(&htim3);
       __HAL_TIM_SET_COUNTER(&htim3, 0);
 
-      ref_speed_r = ref_speed_r + delta_speed / 2;
+      ref_speed_r = ref_speed_r + delta_speed;
 
-      if (ref_speed_r > 500)
-        ref_speed_r = 500;
+      if (ref_speed_r > 600)
+        ref_speed_r = 600;
       else if (ref_speed_r < 0)
         ref_speed_r = 0;
       err_r = ref_speed_r - measureval_r;
@@ -412,7 +416,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       rp_r = kp_r * err_r;
       ri_r = ki_r * err_sum_r;
       rd_r = kd_r * (err_r - last_err_r);
-      pwm_r = rp_r + ri_r + rd_r;
+      pwm_r = (int)(rp_r + ri_r + rd_r);
       if (pwm_r > 0)
       {
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
