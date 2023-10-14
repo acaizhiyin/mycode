@@ -61,7 +61,7 @@ void detect_seed(void);
 
 /* USER CODE BEGIN PV */
 /*电磁参数*/
-int16_t delta_speed = 0, ref_speed_l = 1000, ref_speed_r = 1000, real_speed_l = 0, real_speed_r = 0, last_measureval_l = 0, last_measureval_r = 0, measureval_l = 0, measureval_r = 0;
+int16_t delta_speed, ref_speed_l, ref_speed_r, real_speed_l, real_speed_r, last_measureval_l, last_measureval_r, measureval_l, measureval_r;
 int pwm_l = 0, pwm_r = 0;
 float err_l = 0, last_err_l = 0, err_sum_l = 0, err_r = 0, err_sum_r = 0, last_err_r = 0;
 float kp_l = 1.5, ki_l = 0.325, kd_l = 0.05, rp_l = 0, ri_l = 0, rd_l = 0; //左轮
@@ -70,10 +70,12 @@ float kp_r = 1.5, ki_r = 0.325, kd_r = 0.05, rp_r = 0, ri_r = 0, rd_r = 0; //右
 uint16_t inductance_val[3] = {0}, adc_val_l[10] = {0}, adc_val_m[10] = {0}, adc_val_r[10] = {0}, sum_l = 0, sum_m = 0, sum_r = 0;
 uint16_t val_max_l = 1200, val_min_l = 0, val_max_m = 950, val_min_m = 0, val_max_r = 950, val_min_r = 0;
 float bias = 0, last_bias = 0;
-float position_kp = 6, position_kd = 410, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0;
-float position_alpha = 0.2; //不完全微分系数
-float encoder_alpha = 0.2;  //编码器采样滤波系数
-// float A = 10,B = 0,C = 0, km = 2,K = 0.1;
+float position_kp = 45, position_kd = 400, position_rp = 0, position_rd = 0, last_rd = 0, val_l = 0, val_r = 0, val_m = 0;
+// float position_alpha = 0.2; //不完全微分系数
+float encoder_alpha = 0.2; //编码器采样滤波系数
+// uint8_t km = 5;
+// float A = 50,B = 4,C = 4.5;
+// float K = 0.1;
 
 ///*视觉参数*/
 // uint8_t row = 120, col = 188;
@@ -319,37 +321,36 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     val_l = 100 * (val_l - val_min_l) / (val_max_l - val_min_l);
     val_m = 100 * (val_m - val_min_m) / (val_max_m - val_min_m);
     val_r = 100 * (val_r - val_min_r) / (val_max_r - val_min_r);
-    //    //bias = 10000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
-    bias = 75 * ((val_m - val_r) / (val_m + val_r) - (val_m - val_l) / (val_m + val_l));
-    //			bias = 9 * (4 * (val_l - val_r) / ( 4 * (val_l + val_r) + 2 * abs((int16_t)(val_l - val_r))));//差比和差
-    // bias = 9 * (A * (val_l - val_r) + B * (val_l - val_r)) / ( A * (val_l + val_r) + C * abs((int16_t)(val_l - val_r)));//差比和差
+    //    bias = 6000 * (val_l - val_r) / ((val_l + val_r) * val_m * km); //差比和
+    bias = 200 * ((val_m - val_r) / (val_m + val_r) - (val_m - val_l) / (val_m + val_l)); //
+                                                                                          //			bias = 9 * (4 * (val_l - val_r) / ( 4 * (val_l + val_r) + 2 * abs((int16_t)(val_l - val_r))));//差比和差
+                                                                                          //		bias = 15.0 * (A * (val_l - val_r) + B * (val_l - val_r)) / ( A * (val_l + val_r) + C * abs((int16_t)(val_l - val_r)));//差比和差
 
     //    //printf("%f,%d,%d,%d,%d,%d,%d\n",bias,delta_speed,flag,ref_speed_l,ref_speed_r,measureval_l,measureval_r);
 
     //    //printf("%f \r\n", bias);
-    //		//bias = K * seed_delta;
-    if (bias > -1 && bias < 1)
-    {
-      bias *= 0.15;
-    }
-    else if ((bias > -2 && bias < -1) || (bias > 1 && bias < 2))
+
+    //		position_kp = 60;
+    //		position_kd = 400;
+    if (bias > -4 && bias < 4)
     {
       bias *= 0.5;
     }
-    else if ((bias > -3 && bias < -2) || (bias > 2 && bias < 3))
+    else if ((bias > -50 && bias < -4) || (bias > 4 && bias < 50))
     {
-      bias *= 0.8;
+      bias *= 0.9;
     }
+
     position_rp = position_kp * bias;
-    position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
-                                                                                                      // position_rd = position_kd * (bias - last_bias);
+    //    position_rd = position_kd * (1 - position_alpha) * (bias - last_bias) + position_alpha * last_rd; //不完全微分
+    position_rd = position_kd * (bias - last_bias);
     delta_speed = (int16_t)(position_rp + position_rd);
-    if (delta_speed > 250)
-      delta_speed = 250;
-    if (delta_speed < -250)
-      delta_speed = -250;
+    if (delta_speed > 1000)
+      delta_speed = 1000;
+    if (delta_speed < -1000)
+      delta_speed = -1000;
     last_bias = bias;
-    last_rd = position_rd;
+    //    last_rd = position_rd;
 
     if (val_l < 20 && val_m < 20 && val_r < 20)
     {
@@ -359,7 +360,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     else
     {
       //左轮
-
+      ref_speed_l = 1000;
       ref_speed_l = ref_speed_l - delta_speed;
       if (ref_speed_l > 1100)
       {
@@ -407,6 +408,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       last_err_l = err_l;
 
       //右轮
+      ref_speed_r = 1000;
       ref_speed_r = ref_speed_r + delta_speed;
       if (ref_speed_r > 1100)
       {
